@@ -1,1 +1,650 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventaire Maison</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; color: #2c3e50; }
+        body.dark { background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%); color: #e2e8f0; }
+        .dark .category-section, .dark .header, .dark .search-controls, .dark .house-map, .dark .room-detail-view, .dark .modal-content { background: rgba(45, 55, 72, 0.95); border: 1px solid rgba(74, 85, 104, 0.3); }
+        .dark .item { background: #4a5568; border-color: #718096; }
+        .dark .search-bar, .dark input, .dark select, .dark textarea { background: #4a5568; border-color: #718096; color: #e2e8f0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 25px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); }
+        .logo { font-size: 28px; font-weight: 700; background: linear-gradient(45deg, #4CAF50, #2E7D32); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .header-controls { display: flex; gap: 15px; align-items: center; }
+        .theme-toggle { background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 25px; padding: 8px 12px; cursor: pointer; font-size: 16px; transition: all 0.3s ease; }
+        .theme-toggle:hover { background: #e9ecef; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: rgba(255, 255, 255, 0.9); border-radius: 15px; padding: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-value { font-size: 24px; font-weight: 700; color: #4CAF50; }
+        .stat-label { font-size: 12px; color: #6c757d; margin-top: 5px; }
+        .search-controls { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); }
+        .search-row { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; position: relative; }
+        .search-input-wrap { position: relative; flex: 1; min-width: 250px; }
+        .search-bar { width: 100%; padding: 15px 25px; background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 50px; color: #495057; font-size: 16px; transition: all 0.3s ease; }
+        .search-bar:focus { outline: none; border-color: #4CAF50; box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1); background: white; }
+        .scanner-btn { background: linear-gradient(45deg, #FF7043, #FF5722); color: white; border: none; padding: 15px 25px; border-radius: 50px; cursor: pointer; font-weight: 600; transition: all 0.3s ease; }
+        .scanner-btn:hover { transform: translateY(-2px); }
+        .filters { display: flex; gap: 15px; flex-wrap: wrap; }
+        .filter-select { padding: 10px 15px; background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 25px; font-size: 14px; }
+        .view-toggle { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; background: #f1f3f4; padding: 6px; border-radius: 30px; width: fit-content; margin-left: auto; margin-right: auto; }
+        .toggle-btn { padding: 12px 24px; background: transparent; border: none; border-radius: 25px; color: #546e7a; cursor: pointer; transition: all 0.3s ease; font-weight: 600; font-size: 14px; }
+        .toggle-btn.active { background: white; color: #4CAF50; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+        .action-buttons { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 16px 32px; border: none; border-radius: 50px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        .btn-primary { background: linear-gradient(45deg, #4CAF50, #66BB6A); color: white; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3); }
+        .btn-secondary { background: linear-gradient(45deg, #2196F3, #42A5F5); color: white; box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3); }
+        .btn-warning { background: linear-gradient(45deg, #FF9800, #FFB74D); color: white; box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3); }
+        .btn:hover { transform: translateY(-2px); }
+        .house-map { display: none; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); }
+        .house-map.active { display: block; }
+        .floor-plan { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 140px); gap: 20px; max-width: 900px; margin: 0 auto; }
+        .room { background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 2px solid #e9ecef; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .room:hover { transform: translateY(-5px); border-color: #4CAF50; box-shadow: 0 10px 30px rgba(76, 175, 80, 0.2); }
+        .room-icon { font-size: 36px; margin-bottom: 10px; }
+        .room-name { font-weight: 600; margin-bottom: 4px; color: #2c3e50; font-size: 15px; }
+        .room-count { background: linear-gradient(45deg, #FF7043, #FF5722); color: white; padding: 4px 10px; border-radius: 15px; font-size: 12px; font-weight: 600; position: absolute; top: 12px; right: 12px; }
+        .room[data-room="cuisine"] { grid-area: 1 / 1 / 2 / 2; }
+        .room[data-room="salon"] { grid-area: 1 / 2 / 2 / 4; }
+        .room[data-room="chambre"] { grid-area: 2 / 1 / 3 / 3; }
+        .room[data-room="salle-bain"] { grid-area: 2 / 3 / 3 / 4; }
+        .room[data-room="bureau"] { grid-area: 2 / 4 / 3 / 5; }
+        .room[data-room="garage"] { grid-area: 3 / 1 / 4 / 3; }
+        .room[data-room="cave"] { grid-area: 3 / 3 / 4 / 5; }
+        .categories { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px; }
+        .categories.hidden { display: none; }
+        .category-section { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 25px; transition: all 0.3s ease; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); }
+        .category-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; font-size: 20px; font-weight: 700; color: #2c3e50; padding-bottom: 15px; border-bottom: 2px solid #f1f3f4; }
+        .item { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 15px; padding: 20px; margin-bottom: 15px; border-left: 4px solid #4CAF50; transition: all 0.3s ease; position: relative; display: grid; grid-template-columns: 72px 1fr auto; gap: 14px; align-items: center; }
+        .item:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1); }
+        .item-photo { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #e9ecef; display: block; }
+        .item.no-photo .item-photo { display: none; }
+        .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .item-name { font-weight: 600; color: #2c3e50; font-size: 16px; }
+        .item-actions { display: flex; gap: 8px; }
+        .item-btn { padding: 6px 12px; border: none; border-radius: 15px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.3s ease; }
+        .edit-btn { background: #2196F3; color: white; }
+        .delete-btn { background: #f44336; color: white; }
+        .qr-code { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; background: white; border: 1px solid #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+        .item-quantity { background: linear-gradient(45deg, #4CAF50, #66BB6A); color: white; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .item-details { font-size: 14px; color: #6c757d; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .expiry-warning { background: linear-gradient(45deg, #FF9800, #FFB74D); color: white; padding: 4px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; margin-left: auto; }
+        .expiry-danger { background: linear-gradient(45deg, #f44336, #ef5350); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(5px); }
+        .modal-content { background: white; margin: 2% auto; padding: 35px; border-radius: 25px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 18px; background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 12px; color: #495057; font-size: 14px; transition: all 0.3s ease; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #4CAF50; box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1); background: white; }
+        .photo-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+        .photo-preview { width: 100%; max-width: 100%; height: 180px; object-fit: cover; border-radius: 12px; border: 2px dashed #e9ecef; background: #fafbfc; }
+        .photo-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-ghost { background: #eef2f7; color: #2c3e50; border-radius: 12px; padding: 10px 14px; font-weight: 600; border: 1px solid #e1e7ef; }
+        .notification { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 25px; color: white; font-weight: 600; z-index: 2000; animation: slideInRight 0.4s ease-out; }
+        .notification.success { background: linear-gradient(45deg, #4CAF50, #66BB6A); }
+        .notification.error { background: linear-gradient(45deg, #f44336, #ef5350); }
+        .notification.warning { background: linear-gradient(45deg, #FF9800, #FFB74D); }
+        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .shopping-list { background: #fff3cd; border: 2px solid #ffeaa7; border-radius: 15px; padding: 20px; margin: 20px 0; }
+        .shopping-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #ffeaa7; }
+        #camera { width: 100%; max-width: 400px; height: 300px; border-radius: 15px; margin: 20px 0; }
+        .scanner-area { text-align: center; padding: 20px; }
+        /* 🔍 Suggestions recherche */
+        .hidden { display: none; }
+        .suggestions { position: absolute; left: 0; right: 0; top: calc(100% + 8px); background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); max-height: 260px; overflow-y: auto; z-index: 50; }
+        .suggestion-item { padding: 10px 14px; cursor: pointer; }
+        .suggestion-item:hover { background: #f7fafc; }
+        mark { background: #fde68a; color: #1a202c; padding: 0 2px; border-radius: 3px; }
+        .dark .suggestions { background: #2d3748; border-color: #4a5568; color: #e2e8f0; }
+        .dark .suggestion-item:hover { background: #4a5568; }
+        .dark mark { background: #b7791f; color: #fff; }
+        @media (max-width: 768px) {
+            .search-row { flex-direction: column; }
+            .filters { flex-direction: column; }
+            .action-buttons { flex-direction: column; }
+            .categories { grid-template-columns: 1fr; }
+            .floor-plan { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 120px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🏠 Mon Inventaire</div>
+            <div class="header-controls">
+                <button class="theme-toggle" id="themeToggle">🌙</button>
+            </div>
+        </div>
 
+        <!-- Statistiques -->
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="totalItems">0</div><div class="stat-label">Articles total</div></div>
+            <div class="stat-card"><div class="stat-value" id="expiringItems">0</div><div class="stat-label">Expires bientôt</div></div>
+            <div class="stat-card"><div class="stat-value" id="totalRooms">7</div><div class="stat-label">Pièces</div></div>
+            <div class="stat-card"><div class="stat-value" id="lowStockItems">0</div><div class="stat-label">Stock faible</div></div>
+        </div>
+
+        <div class="search-controls">
+            <div class="search-row">
+                <div class="search-input-wrap">
+                    <input type="text" class="search-bar" id="searchBar" placeholder="🔍 Rechercher un article...">
+                    <div id="searchSuggestions" class="suggestions hidden"></div>
+                </div>
+                <button class="scanner-btn" id="scannerBtn">📷 Scanner</button>
+            </div>
+            
+            <div class="filters">
+                <select class="filter-select" id="roomFilter">
+                    <option value="">Toutes les pièces</option>
+                    <option value="cuisine">🍳 Cuisine</option>
+                    <option value="salon">🛋️ Salon</option>
+                    <option value="chambre">🛏️ Chambre</option>
+                    <option value="salle-bain">🛁 Salle de bain</option>
+                    <option value="bureau">💼 Bureau</option>
+                    <option value="garage">🔧 Garage</option>
+                    <option value="cave">🍷 Cave</option>
+                </select>
+                <select class="filter-select" id="typeFilter">
+                    <option value="">Tous les types</option>
+                    <option value="food">🍎 Nourriture</option>
+                    <option value="objects">🏠 Objets</option>
+                </select>
+                <select class="filter-select" id="expiryFilter">
+                    <option value="">Toutes dates</option>
+                    <option value="expired">⚠️ Expirés</option>
+                    <option value="expiring">⏰ Expire bientôt</option>
+                    <option value="fresh">✅ Frais</option>
+                </select>
+            </div>
+            
+            <div class="view-toggle">
+                <button class="toggle-btn" id="mapViewBtn">🗺️ Plan</button>
+                <button class="toggle-btn active" id="listViewBtn">📋 Liste</button>
+                <button class="toggle-btn" id="statsViewBtn">📊 Stats</button>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="addItemBtn">➕ Ajouter</button>
+                <button class="btn btn-secondary" id="generateListBtn">🛒 Liste courses</button>
+                <button class="btn btn-warning" id="exportBtn">📤 Export</button>
+                <button class="btn btn-secondary" id="importBtn">📥 Import</button>
+            </div>
+        </div>
+
+        <!-- Vue Plan -->
+        <div class="house-map" id="houseMap">
+            <h3 style="text-align: center; margin-bottom: 30px; color: #2c3e50; font-size: 22px;">🏠 Plan de la maison</h3>
+            <div class="floor-plan">
+                <div class="room" data-room="cuisine"><div class="room-icon">🍳</div><div class="room-name">Cuisine</div><div class="room-count" id="cuisine-count">0</div></div>
+                <div class="room" data-room="salon"><div class="room-icon">🛋️</div><div class="room-name">Salon</div><div class="room-count" id="salon-count">0</div></div>
+                <div class="room" data-room="chambre"><div class="room-icon">🛏️</div><div class="room-name">Chambre</div><div class="room-count" id="chambre-count">0</div></div>
+                <div class="room" data-room="salle-bain"><div class="room-icon">🛁</div><div class="room-name">Salle de bain</div><div class="room-count" id="salle-bain-count">0</div></div>
+                <div class="room" data-room="bureau"><div class="room-icon">💼</div><div class="room-name">Bureau</div><div class="room-count" id="bureau-count">0</div></div>
+                <div class="room" data-room="garage"><div class="room-icon">🔧</div><div class="room-name">Garage</div><div class="room-count" id="garage-count">0</div></div>
+                <div class="room" data-room="cave"><div class="room-icon">🍷</div><div class="room-name">Cave</div><div class="room-count" id="cave-count">0</div></div>
+            </div>
+        </div>
+
+        <!-- Vue Liste -->
+        <div class="categories" id="categoriesContainer"></div>
+
+        <!-- Vue Statistiques -->
+        <div id="statsView" style="display: none;">
+            <div class="category-section">
+                <h3>📊 Statistiques détaillées</h3>
+                <div id="detailedStats"></div>
+            </div>
+        </div>
+
+        <!-- Liste de courses -->
+        <div id="shoppingListContainer" style="display: none;">
+            <div class="shopping-list">
+                <h3>🛒 Liste de courses suggérée</h3>
+                <div id="shoppingList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="addItemModal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle">✨ Ajouter un article</h2>
+            <form id="itemForm">
+                <div class="form-group">
+                    <label>Type d'article</label>
+                    <select id="itemType" required>
+                        <option value="">Sélectionnez un type</option>
+                        <option value="food">🍎 Nourriture</option>
+                        <option value="objects">🏠 Objets</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Pièce</label>
+                    <select id="roomSelect" required>
+                        <option value="">Sélectionnez une pièce</option>
+                        <option value="cuisine">🍳 Cuisine</option>
+                        <option value="salon">🛋️ Salon</option>
+                        <option value="chambre">🛏️ Chambre</option>
+                        <option value="salle-bain">🛁 Salle de bain</option>
+                        <option value="bureau">💼 Bureau</option>
+                        <option value="garage">🔧 Garage</option>
+                        <option value="cave">🍷 Cave</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Nom de l'article</label>
+                    <input type="text" id="itemName" required placeholder="Ex: iPhone, Pain, Tournevis...">
+                </div>
+
+                <div class="form-group">
+                    <label>Code-barres/QR (optionnel)</label>
+                    <input type="text" id="itemBarcode" placeholder="Scanner ou saisir manuellement">
+                </div>
+
+                <div class="form-group">
+                    <label>Quantité</label>
+                    <input type="text" id="itemQuantity" placeholder="Ex: 2 litres, 5 unités">
+                </div>
+
+                <div class="form-group">
+                    <label>Localisation précise</label>
+                    <input type="text" id="itemLocation" placeholder="Ex: Étagère du haut, tiroir...">
+                </div>
+
+                <div class="form-group" id="expiryGroup" style="display:none;">
+                    <label>Date d'expiration</label>
+                    <input type="date" id="itemExpiry">
+                </div>
+
+                <div class="form-group">
+                    <label>Seuil de stock bas</label>
+                    <input type="number" id="itemThreshold" placeholder="Ex: 2" min="0">
+                </div>
+
+                <div class="form-group">
+                    <label>Photo (capture mobile ou upload)</label>
+                    <div class="photo-row">
+                        <input type="file" id="itemPhoto" accept="image/*" capture="environment">
+                        <button type="button" id="clearPhotoBtn" class="btn-ghost">Retirer la photo</button>
+                    </div>
+                    <img id="photoPreview" class="photo-preview" alt="Aperçu" style="display:none;" />
+                </div>
+
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="itemNotes" rows="3" placeholder="Informations supplémentaires..."></textarea>
+                </div>
+
+                <input type="hidden" id="itemId">
+
+                <div class="form-buttons">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Annuler</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Ajouter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Scanner (placeholder pour étapes suivantes) -->
+    <div id="scannerModal" class="modal">
+        <div class="modal-content">
+            <h2>📷 Scanner un code-barres</h2>
+            <div class="scanner-area">
+                <video id="camera" autoplay></video>
+                <div id="scanResult"></div>
+            </div>
+            <div class="form-buttons">
+                <button type="button" class="btn btn-secondary" id="stopScanBtn">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input file caché pour import (déjà présent dans ta base d'origine) -->
+    <input type="file" id="importFile" accept=".json" style="display: none;">
+
+    <script>
+    // =============================
+    // 📦 ÉTAT & OUTILS GÉNÉRAUX
+    // =============================
+    const LS_KEY = 'inventory';
+    let inventory = [];
+
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+    function showNotification(message, type = 'success') {
+        const n = document.createElement('div');
+        n.className = `notification ${type}`;
+        n.textContent = message;
+        document.body.appendChild(n);
+        setTimeout(() => n.remove(), 2200);
+    }
+
+    function loadInventory() {
+        try { inventory = JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+        catch { inventory = []; }
+    }
+
+    function saveInventory() {
+        localStorage.setItem(LS_KEY, JSON.stringify(inventory));
+        updateStats();
+    }
+
+    // --- Thème ---
+    function applyTheme(theme) { document.body.classList.toggle('dark', theme === 'dark'); }
+
+    // =============================
+    // 🖼️ COMPRESSION IMAGE -> DATA URL
+    // =============================
+    async function fileToDataURLCompressed(file, maxW = 1024, maxH = 1024, quality = 0.85) {
+        if (!file) return null;
+        const img = new Image();
+        const dataURL = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataURL; });
+
+        const { width, height } = img;
+        let w = width, h = height;
+        if (w > maxW || h > maxH) {
+            const ratio = Math.min(maxW / w, maxH / h);
+            w = Math.round(w * ratio); h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        return canvas.toDataURL('image/jpeg', quality);
+    }
+
+    // =============================
+    // 🔎 RECHERCHE INTELLIGENTE (+ surlignage + suggestions)
+    // =============================
+    const normalize = (s='') => s.normalize && s.normalize('NFD').replace(/\p{Diacritic}/gu, '') || s;
+    const escapeRegExp = (s='') => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function fuzzyMatch(str = '', pattern = '') {
+        str = normalize(str.toLowerCase());
+        pattern = normalize(pattern.toLowerCase());
+        let i = 0, j = 0;
+        while (i < str.length && j < pattern.length) {
+            if (str[i] === pattern[j]) j++;
+            i++;
+        }
+        return j === pattern.length;
+    }
+    function highlightMatch(text = '', query = '') {
+        if (!query) return text;
+        const safe = escapeRegExp(normalize(query));
+        const re = new RegExp(`(${safe})`, 'gi');
+        return text.replace(re, '<mark>$1</mark>');
+    }
+
+    function filterInventory(query) {
+        const q = normalize((query || '').trim().toLowerCase());
+        const suggestions = $('#searchSuggestions');
+        if (!q) {
+            suggestions.classList.add('hidden');
+            renderInventoryList(inventory);
+            return;
+        }
+        const results = inventory.filter(item => {
+            const name = normalize((item.name||'').toLowerCase());
+            const room = normalize((item.room||'').toLowerCase());
+            const type = normalize((item.type||'').toLowerCase());
+            return name.includes(q) || room.includes(q) || type.includes(q) || fuzzyMatch(name, q);
+        });
+
+        // Suggestions (max 6)
+        suggestions.innerHTML = results.slice(0,6).map(r => `
+            <div class="suggestion-item" data-name="${r.name}">
+                ${highlightMatch(r.name, query)} <small>(${highlightMatch(r.room||'', query)})</small>
+            </div>`).join('');
+        suggestions.classList.toggle('hidden', results.length === 0);
+
+        // Liste filtrée avec surlignage
+        renderInventoryList(results, query);
+    }
+
+    // =============================
+    // 🖥️ Rendu de la liste (avec option query pour surlignage)
+    // =============================
+    function renderInventoryList(items = inventory, query = '') {
+        const container = $('#categoriesContainer');
+        container.innerHTML = '';
+        if (!items.length) {
+            container.innerHTML = '<div class="category-section"><p>Aucun article pour le moment.</p></div>';
+            updateStats();
+            updateRoomCounts();
+            return;
+        }
+        const groups = items.reduce((acc, item) => {
+            const key = item.type || 'Divers';
+            acc[key] = acc[key] || []; acc[key].push(item); return acc;
+        }, {});
+
+        Object.keys(groups).forEach((typeKey) => {
+            const sec = document.createElement('div');
+            sec.className = 'category-section';
+            sec.innerHTML = `<div class="category-header">${typeKey === 'food' ? '🍎 Nourriture' : '🏠 Objets'}</div>`;
+            groups[typeKey].forEach((item) => {
+                const card = document.createElement('div');
+                card.className = 'item' + (item.photo ? '' : ' no-photo');
+                card.dataset.id = item.id;
+                const photo = item.photo ? `<img class="item-photo" src="${item.photo}" alt="${item.name}">` : `<div class="item-photo" style="display:block"></div>`;
+                const nameHtml = query ? highlightMatch(item.name, query) : item.name;
+                const roomTxt = [item.room ? '📍 ' + item.room : '', item.location ? '· ' + item.location : ''].join(' ').trim();
+                const roomHtml = query ? highlightMatch(roomTxt, query) : roomTxt;
+                const expiryHtml = item.expiry ? `🗓️ ${item.expiry}` : '';
+                const expiryLine = query ? highlightMatch(expiryHtml, query) : expiryHtml;
+                card.innerHTML = `
+                    ${photo}
+                    <div>
+                        <div class="item-header">
+                            <div class="item-name">${nameHtml}</div>
+                            <span class="item-quantity">${item.quantity || ''}</span>
+                        </div>
+                        <div class="item-details">${roomHtml}</div>
+                        ${expiryLine ? `<div class="item-details">${expiryLine}</div>` : ''}
+                    </div>
+                    <div class="item-actions">
+                        <button class="item-btn edit-btn">Éditer</button>
+                        <button class="item-btn delete-btn">Supprimer</button>
+                    </div>
+                `;
+                sec.appendChild(card);
+            });
+            container.appendChild(sec);
+        });
+        updateStats();
+        updateRoomCounts();
+    }
+
+    // =============================
+    // 📊 Stats & comptages
+    // =============================
+    function updateStats() {
+        $('#totalItems').textContent = String(inventory.length);
+        const today = new Date().toISOString().slice(0,10);
+        const expiring = inventory.filter(i => i.expiry && i.expiry >= today && daysUntil(i.expiry) <= 7).length;
+        $('#expiringItems').textContent = String(expiring);
+        const low = inventory.filter(i => Number(i.threshold) > 0 && parseFloat(i.quantity) <= Number(i.threshold)).length;
+        $('#lowStockItems').textContent = String(low);
+    }
+
+    function updateRoomCounts() {
+        const rooms = ['cuisine','salon','chambre','salle-bain','bureau','garage','cave'];
+        rooms.forEach(r => {
+            const c = inventory.filter(i => i.room === r).length;
+            const el = document.getElementById(r + '-count'); if (el) el.textContent = String(c);
+        });
+    }
+
+    const daysUntil = (dateStr) => {
+        const d = new Date(dateStr); const t = new Date();
+        return Math.ceil((d - new Date(t.toDateString())) / 86400000);
+    };
+
+    // =============================
+    // 🧾 Modale & Formulaire (création/édition)
+    // =============================
+    const addItemModal = $('#addItemModal');
+    const openModal = (m)=> m.style.display = 'block';
+    const closeModal = (m)=> m.style.display = 'none';
+
+    $('#addItemBtn').addEventListener('click', () => {
+        $('#modalTitle').textContent = '✨ Ajouter un article';
+        $('#submitBtn').textContent = 'Ajouter';
+        $('#itemForm').reset();
+        $('#itemId').value = '';
+        $('#photoPreview').style.display = 'none';
+        openModal(addItemModal);
+    });
+    $('#cancelBtn').addEventListener('click', () => closeModal(addItemModal));
+
+    // Afficher le champ d'expiration uniquement pour "food"
+    $('#itemType').addEventListener('change', (e) => {
+        $('#expiryGroup').style.display = e.target.value === 'food' ? 'block' : 'none';
+    });
+
+    // Aperçu photo + nettoyage
+    $('#itemPhoto').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) { $('#photoPreview').style.display = 'none'; return; }
+        const previewUrl = await fileToDataURLCompressed(file, 1024, 1024, 0.85);
+        $('#photoPreview').src = previewUrl; $('#photoPreview').style.display = 'block';
+    });
+    $('#clearPhotoBtn').addEventListener('click', () => {
+        $('#itemPhoto').value = '';
+        $('#photoPreview').src = '';
+        $('#photoPreview').style.display = 'none';
+    });
+
+    // Soumission form — création/édition avec photo compressée
+    $('#itemForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = $('#itemId').value || String(Date.now());
+        const item = {
+            id,
+            type: $('#itemType').value,
+            room: $('#roomSelect').value,
+            name: $('#itemName').value.trim(),
+            barcode: $('#itemBarcode').value.trim(),
+            quantity: $('#itemQuantity').value.trim(),
+            location: $('#itemLocation').value.trim(),
+            expiry: $('#itemExpiry').value,
+            threshold: $('#itemThreshold').value,
+            notes: $('#itemNotes').value.trim(),
+            photo: null,
+        };
+        const file = $('#itemPhoto').files && $('#itemPhoto').files[0];
+        if (file) {
+            try { item.photo = await fileToDataURLCompressed(file, 1280, 1280, 0.82); }
+            catch { item.photo = null; }
+        } else {
+            const existing = inventory.find(i => i.id === id);
+            if (existing && existing.photo && $('#photoPreview').style.display === 'block') {
+                item.photo = existing.photo;
+            }
+        }
+
+        const existingIdx = inventory.findIndex(i => i.id === id);
+        if (existingIdx === -1) { inventory.push(item); showNotification('Article ajouté ✅', 'success'); }
+        else { inventory[existingIdx] = item; showNotification('Article mis à jour ✅', 'success'); }
+
+        saveInventory();
+        renderInventoryList(inventory, $('#searchBar').value);
+        closeModal(addItemModal);
+    });
+
+    // Édition / suppression depuis la liste
+    $('#categoriesContainer').addEventListener('click', (e) => {
+        const card = e.target.closest('.item');
+        if (!card) return;
+        const id = card.dataset.id;
+        const it = inventory.find(i => i.id === id);
+        if (!it) return;
+
+        if (e.target.classList.contains('edit-btn')) {
+            $('#modalTitle').textContent = '✏️ Éditer l\'article';
+            $('#submitBtn').textContent = 'Enregistrer';
+            $('#itemId').value = it.id;
+            $('#itemType').value = it.type || '';
+            $('#expiryGroup').style.display = it.type === 'food' ? 'block' : 'none';
+            $('#roomSelect').value = it.room || '';
+            $('#itemName').value = it.name || '';
+            $('#itemBarcode').value = it.barcode || '';
+            $('#itemQuantity').value = it.quantity || '';
+            $('#itemLocation').value = it.location || '';
+            $('#itemExpiry').value = it.expiry || '';
+            $('#itemThreshold').value = it.threshold || '';
+            $('#itemNotes').value = it.notes || '';
+            if (it.photo) { $('#photoPreview').src = it.photo; $('#photoPreview').style.display = 'block'; }
+            else { $('#photoPreview').style.display = 'none'; }
+            $('#itemPhoto').value = '';
+            openModal(addItemModal);
+        }
+        if (e.target.classList.contains('delete-btn')) {
+            if (confirm('Supprimer cet article ?')) {
+                const idx = inventory.findIndex(i => i.id === id);
+                if (idx > -1) {
+                    inventory.splice(idx, 1);
+                    saveInventory();
+                    renderInventoryList(inventory, $('#searchBar').value);
+                    showNotification('Article supprimé 🗑️', 'warning');
+                }
+            }
+        }
+    });
+
+    // =============================
+    // 🔎 Liaison recherche (input + suggestions)
+    // =============================
+    $('#searchBar').addEventListener('input', (e) => filterInventory(e.target.value));
+    $('#searchBar').addEventListener('focus', (e) => { if (e.target.value) filterInventory(e.target.value); });
+    $('#searchSuggestions').addEventListener('mousedown', (e) => {
+        const item = e.target.closest('.suggestion-item');
+        if (!item) return;
+        const name = item.getAttribute('data-name');
+        $('#searchBar').value = name;
+        filterInventory(name);
+        $('#searchSuggestions').classList.add('hidden');
+    });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-input-wrap')) $('#searchSuggestions').classList.add('hidden');
+    });
+
+    // =============================
+    // 🚀 Init
+    // =============================
+    document.addEventListener('DOMContentLoaded', () => {
+        // Thème mémorisé
+        try { applyTheme(localStorage.getItem('theme') || 'light'); } catch {}
+        $('#themeToggle').addEventListener('click', () => {
+            const next = document.body.classList.contains('dark') ? 'light' : 'dark';
+            applyTheme(next); try { localStorage.setItem('theme', next); } catch {}
+        });
+
+        // Activer capture arrière sur mobile si supporté
+        const photoInput = $('#itemPhoto');
+        if (photoInput && !photoInput.hasAttribute('capture')) {
+            try { photoInput.setAttribute('capture', 'environment'); } catch {}
+        }
+        loadInventory();
+        renderInventoryList();
+        updateStats();
+        updateRoomCounts();
+    });
+
+    // (Scanner, alertes d'expiration automatiques, filtres avancés, drag&drop, historique, partage — à suivre 👇)
+    </script>
+</body>
+</html>
