@@ -513,7 +513,7 @@ body.dark-theme {
     max-width: 600px;
     position: relative;
     animation: fadeIn 0.3s;
-    max-height: 90vh;
+    max-height: 80vh;
     overflow-y: auto;
 }
 
@@ -631,5 +631,6 @@ body.dark-theme {
     display: none;
 
 }
+
 
 
