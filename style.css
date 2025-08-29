@@ -513,8 +513,8 @@ body.dark-theme {
     max-width: 600px;
     position: relative;
     animation: fadeIn 0.3s;
-    max-height: 90vh; /* Permet à la modale de ne pas être plus grande que la hauteur de l'écran */
-    overflow-y: auto;  /* Active le défilement vertical si le contenu dépasse */
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .dark-theme .modal-content {
@@ -631,4 +631,5 @@ body.dark-theme {
     display: none;
 
 }
+
 
