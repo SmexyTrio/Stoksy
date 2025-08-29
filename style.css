@@ -513,6 +513,9 @@ body.dark-theme {
     max-width: 600px;
     position: relative;
     animation: fadeIn 0.3s;
+    /* Ajoutez ces deux lignes pour activer le défilement */
+    max-height: 90vh; /* Permet à la modale de ne pas être plus grande que la hauteur de l'écran */
+    overflow-y: auto;  /* Active le défilement vertical si le contenu dépasse */
 }
 
 .dark-theme .modal-content {
@@ -627,4 +630,5 @@ body.dark-theme {
 
 .hidden {
     display: none;
+
 }
