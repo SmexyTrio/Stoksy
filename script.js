@@ -260,25 +260,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (roomElement) {
         const roomKey = roomElement.dataset.room;
         displayRoomInventory(roomKey);
-
             }
         });
 
-function displayRoomInventory(roomKey) {
-    // 1. Masquez toutes les vues sauf la vue de liste
+function displayRoomInventory(roomKey)  
     selectors.categoriesContainer.classList.remove('hidden');
     selectors.houseMap.classList.add('hidden');
     selectors.statsView.classList.add('hidden');
     selectors.shoppingListContainer.classList.add('hidden');
 
-    // 2. Mettez à jour les boutons de vue
     document.querySelectorAll('.view-toggle .toggle-btn').forEach(btn => btn.classList.remove('active'));
     selectors.listViewBtn.classList.add('active');
 
-    // 3. Réinitialisez le filtre de pièce et appliquez celui de la pièce cliquée
     selectors.roomFilter.value = roomKey;
     
-    // 4. Rendez l'inventaire de la pièce
     renderCategories();
 }
 
@@ -566,4 +561,5 @@ function displayRoomInventory(roomKey) {
     renderAll();
 }
     init();
+
 });
