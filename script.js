@@ -537,5 +537,25 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.themeToggle.textContent = isDark ? '☀️' : '🌙';
     }
 
+// --- Nouvelle Logique de Filtrage par Carte ---
+    function filterByRoom(roomKey) {
+        // 1. Définir la valeur du filtre de pièce
+        selectors.roomFilter.value = roomKey;
+
+        // 2. Changer la vue en mode liste
+        displayView('listView');
+
+        // 3. Effectuer le rendu de l'inventaire filtré
+        renderCategories();
+
+        // (Optionnel) Réinitialiser les autres filtres pour une clarté maximale
+        selectors.searchBar.value = '';
+        selectors.typeFilter.value = '';
+        selectors.expiryFilter.value = '';
+    }
+
+    // Rendre la fonction accessible globalement pour les événements onclick dans le HTML
+    window.filterByRoom = filterByRoom; 
+
     init();
 });
