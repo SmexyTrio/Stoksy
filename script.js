@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
         themeToggle: document.getElementById('themeToggle'),
         addItemBtn: document.getElementById('addItemBtn'),
         addItemModal: document.getElementById('addItemModal'),
+     
         cancelBtn: document.getElementById('cancelBtn'),
         itemForm: document.getElementById('itemForm'),
         itemType: document.getElementById('itemType'),
@@ -30,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         searchSuggestions: document.getElementById('searchSuggestions'),
         roomFilter: document.getElementById('roomFilter'),
         typeFilter: document.getElementById('typeFilter'),
+      
         expiryFilter: document.getElementById('expiryFilter'),
         mapViewBtn: document.getElementById('mapViewBtn'),
         listViewBtn: document.getElementById('listViewBtn'),
@@ -42,17 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
         exportBtn: document.getElementById('exportBtn'),
         importBtn: document.getElementById('importBtn'),
     };
-
     const rooms = {
         'cuisine': '🍳 Cuisine', 'salon': '🛋️ Salon', 'chambre': '🛏️ Chambre',
         'salle-bain': '🛁 Salle de bain', 'bureau': '💼 Bureau', 'garage': '🔧 Garage',
         'cave': '🍷 Cave'
     };
-
     const types = {
         'food': '🍎 Nourriture', 'objects': '🏠 Objets'
     };
-
     // Initialisation de l'état
     function init() {
         loadTheme();
@@ -101,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
             (acc[item.room] = acc[item.room] || []).push(item);
             return acc;
         }, {});
-
         for (const roomKey in rooms) {
             if (groupedItems[roomKey] && groupedItems[roomKey].length > 0) {
                 const roomName = rooms[roomKey];
@@ -111,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="category-header">
                         <h3>${roomName}</h3>
                         <button class="add-item-btn" data-room="${roomKey}">➕ Ajouter un article</button>
+                 
                     </div>
                     <ul class="item-list" id="list-${roomKey}"></ul>
                 `;
@@ -162,7 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const threshold = parseInt(item.threshold);
             return !isNaN(quantity) && !isNaN(threshold) && quantity <= threshold;
         }).length;
-
         document.getElementById('totalItems').textContent = totalItems;
         document.getElementById('expiringItems').textContent = expiringItems;
         document.getElementById('lowStockItems').textContent = lowStockItems;
@@ -208,7 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 stats[key].expiring++;
             }
         });
-        
         for (const key in stats) {
             const s = stats[key];
             const card = document.createElement('div');
@@ -235,7 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const threshold = parseInt(item.threshold);
             return !isNaN(quantity) && !isNaN(threshold) && quantity <= threshold;
         });
-        
         if (lowStockItems.length === 0) {
             shoppingListEl.innerHTML = '<p>Votre stock est complet ! Aucune suggestion pour le moment.</p>';
             return;
@@ -254,7 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function addEventListeners() {
         // Thème
         selectors.themeToggle.addEventListener('click', toggleTheme);
-
         // Modale
         selectors.addItemBtn.addEventListener('click', () => showModal());
         selectors.cancelBtn.addEventListener('click', () => hideModal());
@@ -263,7 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideModal();
             }
         });
-
         // Formulaire
         selectors.itemForm.addEventListener('submit', handleFormSubmit);
         selectors.itemType.addEventListener('change', (e) => {
@@ -282,6 +276,9 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.mapViewBtn.addEventListener('click', () => displayView('mapView'));
         selectors.listViewBtn.addEventListener('click', () => displayView('listView'));
         selectors.statsViewBtn.addEventListener('click', () => displayView('statsView'));
+
+        // ====> MODIFICATION 1 : Écouteur d'événement ajouté <====
+        selectors.houseMap.addEventListener('click', handleRoomClick);
 
         // Actions
         selectors.categoriesContainer.addEventListener('click', handleItemActions);
@@ -305,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
             item.location.toLowerCase().includes(searchTerm) ||
             item.notes.toLowerCase().includes(searchTerm)
         );
-        
         // Gérer les suggestions
         if (searchTerm.length > 2) {
             selectors.searchSuggestions.innerHTML = '';
@@ -338,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
             quantity: document.getElementById('itemQuantity').value,
             location: document.getElementById('itemLocation').value,
             expiry: document.getElementById('itemExpiry').value,
+      
             threshold: document.getElementById('itemThreshold').value,
             photo: selectors.photoPreview.src,
             notes: document.getElementById('itemNotes').value,
@@ -345,7 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         
         updateItemStatus(newItem);
-
         if (state.isEditing) {
             const itemIndex = state.items.findIndex(item => item.id === state.editItemId);
             if (itemIndex > -1) {
@@ -381,6 +377,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ====> MODIFICATION 2 : Nouvelle fonction ajoutée <====
+    function handleRoomClick(e) {
+        // .closest() permet de trouver l'élément .room même si on clique sur l'icône ou le texte à l'intérieur
+        const roomElement = e.target.closest('.room');
+        if (!roomElement) return; // Si le clic n'est pas sur une pièce, on ne fait rien
+
+        const roomKey = roomElement.dataset.room;
+        if (roomKey) {
+            // 1. Mettre à jour la valeur du filtre déroulant des pièces
+            selectors.roomFilter.value = roomKey;
+
+            // 2. Afficher la vue "Liste", qui va automatiquement appliquer le filtre
+            displayView('listView');
+        }
+    }
+
     function handlePhotoUpload(e) {
         const file = e.target.files[0];
         if (file) {
@@ -401,7 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.expiryGroup.style.display = 'none';
         selectors.itemForm.querySelector('#itemId').value = '';
         state.isEditing = false;
-        
         if (item) {
             selectors.addItemBtn.textContent = 'Modifier';
             document.getElementById('modalTitle').textContent = '✏️ Modifier un article';
@@ -415,7 +426,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('itemThreshold').value = item.threshold;
             document.getElementById('itemNotes').value = item.notes;
             selectors.itemForm.querySelector('#itemId').value = item.id;
-            
             if (item.photo) {
                 selectors.photoPreview.src = item.photo;
                 selectors.photoPreview.style.display = 'block';
@@ -452,7 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = selectors.typeFilter.value;
         const expiry = selectors.expiryFilter.value;
         const searchTerm = selectors.searchBar.value.toLowerCase();
-
         return state.items.filter(item => {
             const matchRoom = !room || item.room === room;
             const matchType = !type || item.type === type;
@@ -536,26 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('theme', isDark ? 'dark-theme' : '');
         selectors.themeToggle.textContent = isDark ? '☀️' : '🌙';
     }
-
-// --- Nouvelle Logique de Filtrage par Carte ---
-    function filterByRoom(roomKey) {
-        // 1. Définir la valeur du filtre de pièce
-        selectors.roomFilter.value = roomKey;
-
-        // 2. Changer la vue en mode liste
-        displayView('listView');
-
-        // 3. Effectuer le rendu de l'inventaire filtré
-        renderCategories();
-
-        // (Optionnel) Réinitialiser les autres filtres pour une clarté maximale
-        selectors.searchBar.value = '';
-        selectors.typeFilter.value = '';
-        selectors.expiryFilter.value = '';
-    }
-
-    // Rendre la fonction accessible globalement pour les événements onclick dans le HTML
-    window.filterByRoom = filterByRoom; 
 
     init();
 });
