@@ -27,131 +27,101 @@
 
         <div class="search-controls">
             <div class="search-row">
-                <div class="search-input-wrap">
-                    <input type="text" class="search-bar" id="searchBar" placeholder="🔍 Rechercher un article...">
-                    <div id="searchSuggestions" class="suggestions hidden"></div>
+                <div class="search-input-group">
+                    <input type="text" id="searchBar" placeholder="Rechercher un article...">
+                    <div class="search-suggestions" id="searchSuggestions"></div>
                 </div>
-                <button class="scanner-btn" id="scannerBtn">📷 Scanner</button>
+                <button class="btn btn-primary" id="addItemBtn">Ajouter un article</button>
             </div>
             
-            <div class="filters">
-                <select class="filter-select" id="roomFilter">
+            <div class="filter-row">
+                <select id="roomFilter">
                     <option value="">Toutes les pièces</option>
-                    <option value="cuisine">🍳 Cuisine</option>
-                    <option value="salon">🛋️ Salon</option>
-                    <option value="chambre">🛏️ Chambre</option>
-                    <option value="salle-bain">🛁 Salle de bain</option>
-                    <option value="bureau">💼 Bureau</option>
-                    <option value="garage">🔧 Garage</option>
-                    <option value="cave">🍷 Cave</option>
+                    <option value="cuisine">Cuisine</option>
+                    <option value="salon">Salon</option>
+                    <option value="chambre">Chambre</option>
+                    <option value="salle-bain">Salle de bain</option>
+                    <option value="bureau">Bureau</option>
+                    <option value="garage">Garage</option>
+                    <option value="cave">Cave</option>
                 </select>
-                <select class="filter-select" id="typeFilter">
+                
+                <select id="typeFilter">
                     <option value="">Tous les types</option>
-                    <option value="food">🍎 Nourriture</option>
-                    <option value="objects">🏠 Objets</option>
+                    <option value="consommable">Consommable</option>
+                    <option value="non-consommable">Non-consommable</option>
                 </select>
-                <select class="filter-select" id="expiryFilter">
-                    <option value="">Toutes dates</option>
-                    <option value="expired">⚠️ Expirés</option>
-                    <option value="expiring">⏰ Expire bientôt</option>
-                    <option value="fresh">✅ Frais</option>
+                
+                <select id="expiryFilter">
+                    <option value="">Toutes les dates</option>
+                    <option value="soon">Expire bientôt</option>
+                    <option value="expired">Expiré</option>
+                    <option value="ok">Date OK</option>
                 </select>
-            </div>
-            
-            <div class="view-toggle">
-                <button class="toggle-btn" id="mapViewBtn">🗺️ Plan</button>
-                <button class="toggle-btn active" id="listViewBtn">📋 Liste</button>
-                <button class="toggle-btn" id="statsViewBtn">📊 Stats</button>
-            </div>
-            
-            <div class="action-buttons">
-                <button class="btn btn-primary" id="addItemBtn">➕ Ajouter</button>
-                <button class="btn btn-secondary" id="generateListBtn">🛒 Liste courses</button>
-                <button class="btn btn-warning" id="exportBtn">📤 Export</button>
-                <button class="btn btn-secondary" id="importBtn">📥 Import</button>
+
+                <button class="btn-ghost" id="viewToggleBtn">Vue Carte</button>
             </div>
         </div>
-
-        <div id="mainView">
-            <div class="categories" id="categoriesContainer"></div>
-            
-            <div class="house-map hidden" id="houseMap">
-                <h3 style="text-align: center; margin-bottom: 30px; color: #2c3e50; font-size: 22px;">🏠 Plan de la maison</h3>
-                <div class="floor-plan">
-                    <div class="room" data-room="cuisine"><div class="room-icon">🍳</div><div class="room-name">Cuisine</div><div class="room-count" id="cuisine-count">0</div></div>
-                    <div class="room" data-room="salon"><div class="room-icon">🛋️</div><div class="room-name">Salon</div><div class="room-count" id="salon-count">0</div></div>
-                    <div class="room" data-room="chambre"><div class="room-icon">🛏️</div><div class="room-name">Chambre</div><div class="room-count" id="chambre-count">0</div></div>
-                    <div class="room" data-room="salle-bain"><div class="room-icon">🛁</div><div class="room-name">Salle de bain</div><div class="room-count" id="salle-bain-count">0</div></div>
-                    <div class="room" data-room="bureau"><div class="room-icon">💼</div><div class="room-name">Bureau</div><div class="room-count" id="bureau-count">0</div></div>
-                    <div class="room" data-room="garage"><div class="room-icon">🔧</div><div class="room-name">Garage</div><div class="room-count" id="garage-count">0</div></div>
-                    <div class="room" data-room="cave"><div class="room-icon">🍷</div><div class="room-name">Cave</div><div class="room-count" id="cave-count">0</div></div>
+        
+        <div class="list-view" id="listView">
+            <div class="category-list" id="categoryList">
                 </div>
-            </div>
+        </div>
 
-            <div id="statsView" class="hidden">
-                <div class="category-section">
-                    <h3>📊 Statistiques détaillées</h3>
-                    <div id="detailedStats"></div>
-                </div>
+        <div class="house-map hidden" id="houseMap">
+            <h3 style="text-align: center;
+margin-bottom: 30px; color: #2c3e50; font-size: 22px;">🏠 Plan de la maison</h3>
+            <div class="floor-plan">
+                <div class="room clickable-room" data-room="cuisine" onclick="window.filterByRoom('cuisine')"><div class="room-icon">🍳</div><div class="room-name">Cuisine</div><div class="room-count" id="cuisine-count">0</div></div>
+                <div class="room clickable-room" data-room="salon" onclick="window.filterByRoom('salon')"><div class="room-icon">🛋️</div><div class="room-name">Salon</div><div class="room-count" id="salon-count">0</div></div>
+                <div class="room clickable-room" data-room="chambre" onclick="window.filterByRoom('chambre')"><div class="room-icon">🛏️</div><div class="room-name">Chambre</div><div class="room-count" id="chambre-count">0</div></div>
+                <div class="room clickable-room" data-room="salle-bain" onclick="window.filterByRoom('salle-bain')"><div class="room-icon">🛁</div><div class="room-name">Salle de bain</div><div class="room-count" id="salle-bain-count">0</div></div>
+                <div class="room clickable-room" data-room="bureau" onclick="window.filterByRoom('bureau')"><div class="room-icon">💼</div><div class="room-name">Bureau</div><div class="room-count" id="bureau-count">0</div></div>
+                <div class="room clickable-room" data-room="garage" onclick="window.filterByRoom('garage')"><div class="room-icon">🔧</div><div class="room-name">Garage</div><div class="room-count" id="garage-count">0</div></div>
+                <div class="room clickable-room" data-room="cave" onclick="window.filterByRoom('cave')"><div class="room-icon">🍷</div><div class="room-name">Cave</div><div class="room-count" id="cave-count">0</div></div>
             </div>
-
-            <div id="shoppingListContainer" class="hidden">
-                <div class="shopping-list">
-                    <h3>🛒 Liste de courses suggérée</h3>
-                    <div id="shoppingList"></div>
-                </div>
-            </div>
+            <button class="btn btn-secondary" id="generateListBtn">Exporter la liste</button>
         </div>
     </div>
-
+    
     <div id="addItemModal" class="modal">
         <div class="modal-content">
-            <h2 id="modalTitle">✨ Ajouter un article</h2>
+            <h2>Ajouter/Modifier un article</h2>
             <form id="itemForm">
+                
                 <div class="form-group">
-                    <label>Type d'article</label>
+                    <label for="itemName">Nom de l'article</label>
+                    <input type="text" id="itemName" required placeholder="Ex: Piles AA">
+                </div>
+                
+                <div class="form-group">
+                    <label for="itemRoom">Pièce de stockage</label>
+                    <select id="itemRoom" required>
+                        <option value="">Sélectionner une pièce</option>
+                        <option value="cuisine">Cuisine</option>
+                        <option value="salon">Salon</option>
+                        <option value="chambre">Chambre</option>
+                        <option value="salle-bain">Salle de bain</option>
+                        <option value="bureau">Bureau</option>
+                        <option value="garage">Garage</option>
+                        <option value="cave">Cave</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemQuantity">Quantité</label>
+                    <input type="number" id="itemQuantity" required min="1" value="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="itemType">Type</label>
                     <select id="itemType" required>
-                        <option value="">Sélectionnez un type</option>
-                        <option value="food">🍎 Nourriture</option>
-                        <option value="objects">🏠 Objets</option>
+                        <option value="non-consommable">Non-consommable (Permanent)</option>
+                        <option value="consommable">Consommable (Expire)</option>
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label>Pièce</label>
-                    <select id="roomSelect" required>
-                        <option value="">Sélectionnez une pièce</option>
-                        <option value="cuisine">🍳 Cuisine</option>
-                        <option value="salon">🛋️ Salon</option>
-                        <option value="chambre">🛏️ Chambre</option>
-                        <option value="salle-bain">🛁 Salle de bain</option>
-                        <option value="bureau">💼 Bureau</option>
-                        <option value="garage">🔧 Garage</option>
-                        <option value="cave">🍷 Cave</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Nom de l'article</label>
-                    <input type="text" id="itemName" required placeholder="Ex: iPhone, Pain, Tournevis...">
-                </div>
-
-                <div class="form-group">
-                    <label>Code-barres/QR (optionnel)</label>
-                    <input type="text" id="itemBarcode" placeholder="Scanner ou saisir manuellement">
-                </div>
-
-                <div class="form-group">
-                    <label>Quantité</label>
-                    <input type="text" id="itemQuantity" placeholder="Ex: 2 litres, 5 unités">
-                </div>
-
-                <div class="form-group">
-                    <label>Localisation précise</label>
-                    <input type="text" id="itemLocation" placeholder="Ex: Étagère du haut, tiroir...">
-                </div>
-
-                <div class="form-group" id="expiryGroup" style="display:none;">
+                <div class="form-group hidden" id="expiryGroup">
                     <label>Date d'expiration</label>
                     <input type="date" id="itemExpiry">
                 </div>
@@ -187,4 +157,3 @@
     <script src="script.js"></script>
 </body>
 </html>
-
