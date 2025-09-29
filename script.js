@@ -7,19 +7,32 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+
+    function getInitialItems() {
+        try {
+            const items = localStorage.getItem('inventoryItems');
+            return items ? JSON.parse(items) : [];
+        } catch (e) {
+            console.error("Erreur lors de la lecture de l'inventaire, réinitialisation.", e);
+            localStorage.removeItem('inventoryItems');
+            return [];
+        }
+    }
+
     const state = {
-        items: JSON.parse(localStorage.getItem('inventoryItems')) || [],
+        items: getInitialItems(),
         currentView: 'listView',
         isEditing: false,
         editItemId: null,
     };
+
+    let charts = {};
 
     const selectors = {
         body: document.body,
         themeToggle: document.getElementById('themeToggle'),
         addItemBtn: document.getElementById('addItemBtn'),
         addItemModal: document.getElementById('addItemModal'),
-     
         cancelBtn: document.getElementById('cancelBtn'),
         itemForm: document.getElementById('itemForm'),
         itemType: document.getElementById('itemType'),
@@ -31,11 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
         searchSuggestions: document.getElementById('searchSuggestions'),
         roomFilter: document.getElementById('roomFilter'),
         typeFilter: document.getElementById('typeFilter'),
-      
         expiryFilter: document.getElementById('expiryFilter'),
         mapViewBtn: document.getElementById('mapViewBtn'),
         listViewBtn: document.getElementById('listViewBtn'),
         statsViewBtn: document.getElementById('statsViewBtn'),
+        mainView: document.getElementById('mainView'),
         categoriesContainer: document.getElementById('categoriesContainer'),
         houseMap: document.getElementById('houseMap'),
         statsView: document.getElementById('statsView'),
@@ -43,23 +56,50 @@ document.addEventListener('DOMContentLoaded', () => {
         generateListBtn: document.getElementById('generateListBtn'),
         exportBtn: document.getElementById('exportBtn'),
         importBtn: document.getElementById('importBtn'),
+        totalItemsCard: document.getElementById('totalItemsCard'),
+        expiringItemsCard: document.getElementById('expiringItemsCard'),
+        totalRoomsCard: document.getElementById('totalRoomsCard'),
+        lowStockItemsCard: document.getElementById('lowStockItemsCard'),
+        detailedStats: document.getElementById('detailedStats'),
+        colorSettings: document.getElementById('colorSettings'),
+        chartTypeToggle: document.getElementById('chartTypeToggle'),
+        expirySettings: document.getElementById('expirySettings'),
+        scannerBtn: document.getElementById('scannerBtn'),
+        scannerModal: document.getElementById('scannerModal'),
+        scannerContainer: document.getElementById('scanner-container'),
+        cancelScanBtn: document.getElementById('cancelScanBtn'),
     };
+	
     const rooms = {
         'cuisine': '🍳 Cuisine', 'salon': '🛋️ Salon', 'chambre': '🛏️ Chambre',
         'salle-bain': '🛁 Salle de bain', 'bureau': '💼 Bureau', 'garage': '🔧 Garage',
         'cave': '🍷 Cave'
     };
+	
     const types = {
         'food': '🍎 Nourriture', 'objects': '🏠 Objets'
     };
-    // Initialisation de l'état
+
+    const STATUS_MAP = {
+        fresh: 'Frais',
+        expiring: 'Expire bientôt',
+        expired: 'Expiré'
+    };
+
+    const DEFAULT_EXPIRY_THRESHOLDS = {
+        cuisine: 7, salon: 14, chambre: 365, 'salle-bain': 90,
+        bureau: 365, garage: 365, cave: 60
+    };
+	
     function init() {
         loadTheme();
+        renderColorPickers();
+        renderExpirySettings();
+        recalculateAllItemStatuses();
         renderAll();
         addEventListeners();
     }
 
-    // --- Logique du rendu ---
     function renderAll() {
         updateStats();
         displayView(state.currentView);
@@ -71,9 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.houseMap.classList.add('hidden');
         selectors.statsView.classList.add('hidden');
         selectors.shoppingListContainer.classList.add('hidden');
-
         document.querySelectorAll('.view-toggle .toggle-btn').forEach(btn => btn.classList.remove('active'));
-
         if (view === 'listView') {
             selectors.categoriesContainer.classList.remove('hidden');
             selectors.listViewBtn.classList.add('active');
@@ -86,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectors.statsView.classList.remove('hidden');
             selectors.statsViewBtn.classList.add('active');
             renderDetailedStats();
+            renderStatsCharts();
         } else if (view === 'shoppingListView') {
             selectors.shoppingListContainer.classList.remove('hidden');
             renderShoppingList();
@@ -95,11 +134,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCategories() {
         selectors.categoriesContainer.innerHTML = '';
         const filteredItems = filterItems();
-
         const groupedItems = filteredItems.reduce((acc, item) => {
-            (acc[item.room] = acc[item.room] || []).push(item);
+            if (item && item.room) {
+                (acc[item.room] = acc[item.room] || []).push(item);
+            }
             return acc;
         }, {});
+		
         for (const roomKey in rooms) {
             if (groupedItems[roomKey] && groupedItems[roomKey].length > 0) {
                 const roomName = rooms[roomKey];
@@ -109,12 +150,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="category-header">
                         <h3>${roomName}</h3>
                         <button class="add-item-btn" data-room="${roomKey}">➕ Ajouter un article</button>
-                 
                     </div>
                     <ul class="item-list" id="list-${roomKey}"></ul>
                 `;
                 selectors.categoriesContainer.appendChild(section);
-
                 const list = section.querySelector('.item-list');
                 groupedItems[roomKey].forEach(item => {
                     const li = createItemCard(item);
@@ -125,18 +164,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createItemCard(item) {
+        if (!item || !item.name || !item.room) {
+            const emptyLi = document.createElement('li');
+            emptyLi.style.display = 'none';
+            return emptyLi;
+        }
         const li = document.createElement('li');
         li.className = 'item-card';
+        li.setAttribute('data-id', item.id);
         if (item.status) {
             li.classList.add(item.status);
         }
+        const roomName = rooms[item.room] || 'Pièce inconnue';
         li.innerHTML = `
-            <img src="${item.photo || 'https://via.placeholder.com/60'}" class="item-photo" alt="${item.name}">
+            <img src="${item.photo || 'https://via.placeholder.com/60'}" class="item-photo" alt="${item.name || 'Article sans nom'}">
             <div class="item-info">
-                <div class="item-name">${item.name}</div>
+                <div class="item-name">${item.name || 'Article sans nom'}</div>
                 <div class="item-details">
                     Quantité: ${item.quantity || 'N/A'} - 
-                    ${item.type === 'food' ? `Expire le: ${item.expiry || 'N/A'}` : `Pièce: ${rooms[item.room]}`}
+                    ${item.type === 'food' ? `Expire le: ${item.expiry || 'N/A'}` : `Pièce: ${roomName}`}
                 </div>
             </div>
             <div class="item-actions">
@@ -149,13 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateStats() {
         const totalItems = state.items.length;
-        const expiringItems = state.items.filter(item => {
-            if (!item.expiry) return false;
-            const expiryDate = new Date(item.expiry);
-            const today = new Date();
-            const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-            return diffDays >= 0 && diffDays <= 7;
-        }).length;
+        const expiringItems = state.items.filter(item => item.status === 'expiring').length;
         const lowStockItems = state.items.filter(item => {
             const quantity = parseInt(item.quantity);
             const threshold = parseInt(item.threshold);
@@ -179,19 +219,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDetailedStats() {
         const detailedStatsEl = document.getElementById('detailedStats');
         detailedStatsEl.innerHTML = '';
-        
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const recentItems = state.items.filter(item =>
+            item.dateAdded && new Date(item.dateAdded) > thirtyDaysAgo
+        ).length;
+        const recentCard = document.createElement('div');
+        recentCard.className = 'stat-card';
+        recentCard.setAttribute('data-filter-type', 'recent');
+        recentCard.setAttribute('data-filter-value', '30');
+        recentCard.innerHTML = `
+            <div class="stat-label">Nouveaux articles</div>
+            <div class="stat-value">${recentItems}</div>
+            <div class="stat-details">ajoutés ces 30 derniers jours</div>
+        `;
+        detailedStatsEl.prepend(recentCard);
         const stats = {};
         state.items.forEach(item => {
             const key = `${item.room}-${item.type}`;
             if (!stats[key]) {
-                stats[key] = {
-                    count: 0,
-                    room: rooms[item.room],
-                    type: types[item.type],
-                    lowStock: 0,
-                    expired: 0,
-                    expiring: 0,
-                };
+                stats[key] = { count: 0, room: rooms[item.room], type: types[item.type], roomKey: item.room, typeKey: item.type, lowStock: 0, expired: 0, expiring: 0 };
             }
             stats[key].count++;
             const quantity = parseInt(item.quantity);
@@ -199,17 +246,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isNaN(quantity) && !isNaN(threshold) && quantity <= threshold) {
                 stats[key].lowStock++;
             }
-            if (item.status === 'expired') {
-                stats[key].expired++;
-            }
-            if (item.status === 'expiring') {
-                stats[key].expiring++;
-            }
+            if (item.status === 'expired') stats[key].expired++;
+            if (item.status === 'expiring') stats[key].expiring++;
         });
         for (const key in stats) {
             const s = stats[key];
             const card = document.createElement('div');
             card.className = 'stat-card';
+            card.setAttribute('data-filter-type', 'category');
+            card.setAttribute('data-filter-value', `${s.roomKey}|${s.typeKey}`);
             card.innerHTML = `
                 <div class="stat-label">${s.room} - ${s.type}</div>
                 <div class="stat-value">${s.count} articles</div>
@@ -222,21 +267,206 @@ document.addEventListener('DOMContentLoaded', () => {
             detailedStatsEl.appendChild(card);
         }
     }
+
+    function getDefaultColors() {
+        return {
+            rooms: {
+                cuisine: '#3498db', salon: '#e74c3c', chambre: '#9b59b6',
+                'salle-bain': '#2ecc71', bureau: '#f1c40f', garage: '#1abc9c', cave: '#34495e'
+            },
+            status: {
+                expired: '#e74c3c', expiring: '#f1c40f', fresh: '#2ecc71'
+            }
+        };
+    }
+
+    function getChartColors() {
+        const savedColors = localStorage.getItem('chartColors');
+        if (savedColors) {
+            try {
+                const defaults = getDefaultColors();
+                const custom = JSON.parse(savedColors);
+                return {
+                    rooms: { ...defaults.rooms, ...custom.rooms },
+                    status: { ...defaults.status, ...custom.status }
+                };
+            } catch (e) {
+                return getDefaultColors();
+            }
+        }
+        return getDefaultColors();
+    }
+
+    function renderColorPickers() {
+        const colors = getChartColors();
+        const roomContainer = document.getElementById('roomColorPickers');
+        const statusContainer = document.getElementById('statusColorPickers');
+        if (!roomContainer || !statusContainer) return;
+        roomContainer.innerHTML = '';
+        statusContainer.innerHTML = '';
+        for (const key in rooms) {
+            const item = document.createElement('div');
+            item.className = 'color-picker-item';
+            item.innerHTML = `
+                <input type="color" value="${colors.rooms[key] || '#cccccc'}" data-type="rooms" data-key="${key}">
+                <label>${rooms[key]}</label>
+            `;
+            roomContainer.appendChild(item);
+        }
+        for (const key in STATUS_MAP) {
+            const item = document.createElement('div');
+            item.className = 'color-picker-item';
+            item.innerHTML = `
+                <input type="color" value="${colors.status[key] || '#cccccc'}" data-type="status" data-key="${key}">
+                <label>${STATUS_MAP[key]}</label>
+            `;
+            statusContainer.appendChild(item);
+        }
+    }
     
+    function renderStatsCharts() {
+        Object.values(charts).forEach(chart => chart.destroy());
+        const chartColors = getChartColors();
+        const preferredChartType = localStorage.getItem('chartType') || 'circle';
+
+        if (selectors.chartTypeToggle) {
+            selectors.chartTypeToggle.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.chartType === preferredChartType);
+            });
+        }
+
+        const baseOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: preferredChartType === 'bar' ? 'top' : 'right',
+                }
+            }
+        };
+
+        const itemsByRoom = state.items.reduce((acc, item) => {
+            const roomName = rooms[item.room] || 'Non classé';
+            acc[roomName] = (acc[roomName] || 0) + 1;
+            return acc;
+        }, {});
+        
+        const roomLabels = Object.keys(itemsByRoom);
+        const roomColors = roomLabels.map(label => {
+            const roomKey = Object.keys(rooms).find(key => rooms[key] === label);
+            return chartColors.rooms[roomKey] || '#cccccc';
+        });
+
+        const roomCtx = document.getElementById('itemsByRoomChart').getContext('2d');
+        const roomChartOptions = {
+            ...baseOptions,
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const clickedLabel = charts.itemsByRoom.data.labels[elements[0].index];
+                    const roomKey = Object.keys(rooms).find(key => rooms[key] === clickedLabel);
+                    if (roomKey) {
+                        const filtered = state.items.filter(item => item.room === roomKey);
+                        const container = document.getElementById('statsFilteredListContainer');
+                        const list = document.getElementById('statsFilteredList');
+                        const title = document.getElementById('statsFilteredListTitle');
+                        title.textContent = `Articles dans : ${clickedLabel}`;
+                        list.innerHTML = '';
+                        filtered.forEach(item => {
+                            list.appendChild(createItemCard(item));
+                        });
+                        container.style.display = 'block';
+                        container.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        };
+        if (preferredChartType === 'bar') {
+            roomChartOptions.indexAxis = 'y';
+            roomChartOptions.scales = { x: { beginAtZero: true } };
+        }
+
+        charts.itemsByRoom = new Chart(roomCtx, {
+            type: preferredChartType === 'circle' ? 'doughnut' : 'bar',
+            data: {
+                labels: roomLabels,
+                datasets: [{
+                    label: 'Nombre d\'articles',
+                    data: Object.values(itemsByRoom),
+                    backgroundColor: roomColors,
+                }]
+            },
+            options: roomChartOptions
+        });
+
+        const expiryStatus = state.items
+            .filter(item => item.type === 'food' && item.status)
+            .reduce((acc, item) => {
+                const statusLabel = STATUS_MAP[item.status] || 'Autre';
+                acc[statusLabel] = (acc[statusLabel] || 0) + 1;
+                return acc;
+            }, {});
+            
+        const statusLabels = Object.keys(expiryStatus);
+        const statusColors = statusLabels.map(label => {
+            const statusKey = Object.keys(STATUS_MAP).find(key => STATUS_MAP[key] === label);
+            return chartColors.status[statusKey] || '#cccccc';
+        });
+
+        const expiryCtx = document.getElementById('expiryStatusChart').getContext('2d');
+        const expiryChartOptions = {
+             ...baseOptions,
+             onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const clickedLabel = charts.expiryStatus.data.labels[elements[0].index];
+                    let statusKey = Object.keys(STATUS_MAP).find(key => STATUS_MAP[key] === clickedLabel);
+                    if (statusKey) {
+                        const filtered = state.items.filter(item => item.status === statusKey);
+                        const container = document.getElementById('statsFilteredListContainer');
+                        const list = document.getElementById('statsFilteredList');
+                        const title = document.getElementById('statsFilteredListTitle');
+                        title.textContent = `Articles avec le statut : ${clickedLabel}`;
+                        list.innerHTML = '';
+                        filtered.forEach(item => {
+                            list.appendChild(createItemCard(item));
+                        });
+                        container.style.display = 'block';
+                        container.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        };
+        if (preferredChartType === 'bar') {
+            expiryChartOptions.indexAxis = 'y';
+            expiryChartOptions.scales = { x: { beginAtZero: true } };
+        }
+        
+        charts.expiryStatus = new Chart(expiryCtx, {
+            type: preferredChartType === 'circle' ? 'pie' : 'bar',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    label: 'État',
+                    data: Object.values(expiryStatus),
+                    backgroundColor: statusColors
+                }]
+            },
+            options: expiryChartOptions
+        });
+    }
+
     function renderShoppingList() {
         const shoppingListEl = document.getElementById('shoppingList');
+        if (!shoppingListEl) return;
         shoppingListEl.innerHTML = '';
-        
         const lowStockItems = state.items.filter(item => {
             const quantity = parseInt(item.quantity);
             const threshold = parseInt(item.threshold);
             return !isNaN(quantity) && !isNaN(threshold) && quantity <= threshold;
         });
         if (lowStockItems.length === 0) {
-            shoppingListEl.innerHTML = '<p>Votre stock est complet ! Aucune suggestion pour le moment.</p>';
+            shoppingListEl.innerHTML = '<p>Votre stock est complet !</p>';
             return;
         }
-        
         const ul = document.createElement('ul');
         lowStockItems.forEach(item => {
             const li = document.createElement('li');
@@ -246,11 +476,92 @@ document.addEventListener('DOMContentLoaded', () => {
         shoppingListEl.appendChild(ul);
     }
 
-    // --- Logique des événements ---
+    async function fetchProductInfo(barcode) {
+        const originalTitle = document.getElementById('scannerTitle').textContent;
+        document.getElementById('scannerTitle').textContent = "Recherche en cours...";
+        try {
+            const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+            const data = await response.json();
+            if (data.status === 1 && data.product) {
+                const product = data.product;
+                const prefilledData = {
+                    name: product.product_name || '',
+                    photo: product.image_front_url || '',
+                    barcode: barcode
+                };
+                showModal(null, prefilledData);
+            } else {
+                alert(`Produit non trouvé. Code-barres : ${barcode}`);
+                showModal(null, { barcode: barcode });
+            }
+        } catch (error) {
+            console.error("Erreur lors de la récupération des informations du produit:", error);
+            alert("Erreur réseau. Impossible de récupérer les informations du produit.");
+            showModal(null, { barcode: barcode });
+        } finally {
+             document.getElementById('scannerTitle').textContent = originalTitle;
+        }
+    }
+
+    function startScanner() {
+        selectors.scannerModal.style.display = 'flex';
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: selectors.scannerContainer,
+                constraints: {
+                    width: 480,
+                    height: 320,
+                    facingMode: "environment"
+                },
+            },
+            decoder: {
+                readers: ["ean_reader", "ean_8_reader", "code_128_reader"]
+            }
+        }, function(err) {
+            if (err) {
+                console.error(err);
+                alert("Erreur lors de l'initialisation de la caméra. Assurez-vous d'avoir donné la permission.");
+                stopScanner();
+                return;
+            }
+            Quagga.start();
+        });
+        Quagga.onDetected(result => {
+            const code = result.codeResult.code;
+            stopScanner();
+            fetchProductInfo(code);
+        });
+    }
+
+    function stopScanner() {
+        if (typeof Quagga !== 'undefined' && Quagga.running) {
+            Quagga.stop();
+        }
+        selectors.scannerModal.style.display = 'none';
+    }
+
     function addEventListeners() {
-        // Thème
+        selectors.scannerBtn.addEventListener('click', startScanner);
+        selectors.cancelScanBtn.addEventListener('click', stopScanner);
         selectors.themeToggle.addEventListener('click', toggleTheme);
-        // Modale
+        selectors.totalItemsCard.addEventListener('click', () => {
+            selectors.roomFilter.value = '';
+            selectors.typeFilter.value = '';
+            selectors.expiryFilter.value = '';
+            displayView('listView');
+        });
+        selectors.expiringItemsCard.addEventListener('click', () => {
+            selectors.expiryFilter.value = 'expiring';
+            displayView('listView');
+        });
+        selectors.totalRoomsCard.addEventListener('click', () => {
+            displayView('mapView');
+        });
+        selectors.lowStockItemsCard.addEventListener('click', () => {
+            displayView('shoppingListView');
+        });
         selectors.addItemBtn.addEventListener('click', () => showModal());
         selectors.cancelBtn.addEventListener('click', () => hideModal());
         window.addEventListener('click', (event) => {
@@ -258,139 +569,167 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideModal();
             }
         });
-        // Formulaire
         selectors.itemForm.addEventListener('submit', handleFormSubmit);
         selectors.itemType.addEventListener('change', (e) => {
             selectors.expiryGroup.style.display = e.target.value === 'food' ? 'block' : 'none';
         });
         selectors.itemPhotoInput.addEventListener('change', handlePhotoUpload);
         selectors.clearPhotoBtn.addEventListener('click', clearPhoto);
-
-        // Filtrage et recherche
         selectors.searchBar.addEventListener('input', handleSearch);
         selectors.roomFilter.addEventListener('change', renderCategories);
         selectors.typeFilter.addEventListener('change', renderCategories);
         selectors.expiryFilter.addEventListener('change', renderCategories);
-
-        // Vues
         selectors.mapViewBtn.addEventListener('click', () => displayView('mapView'));
         selectors.listViewBtn.addEventListener('click', () => displayView('listView'));
         selectors.statsViewBtn.addEventListener('click', () => displayView('statsView'));
-
-        // ====> MODIFICATION 1 : Écouteur d'événement ajouté <====
         selectors.houseMap.addEventListener('click', handleRoomClick);
-
-        // Actions
-        selectors.categoriesContainer.addEventListener('click', handleItemActions);
-        selectors.categoriesContainer.addEventListener('click', (e) => {
-            if (e.target.classList.contains('add-item-btn')) {
-                const room = e.target.dataset.room;
+        selectors.detailedStats.addEventListener('click', handleDetailedStatClick);
+        selectors.colorSettings.addEventListener('change', (e) => {
+            if (e.target.type === 'color') {
+                const type = e.target.dataset.type;
+                const key = e.target.dataset.key;
+                const newColor = e.target.value;
+                const currentColors = getChartColors();
+                currentColors[type][key] = newColor;
+                localStorage.setItem('chartColors', JSON.stringify(currentColors));
+                renderStatsCharts();
+            }
+        });
+        selectors.chartTypeToggle.addEventListener('click', (e) => {
+            const btn = e.target.closest('.toggle-btn');
+            if (btn) {
+                const chartType = btn.dataset.chartType;
+                localStorage.setItem('chartType', chartType);
+                renderStatsCharts();
+            }
+        });
+        selectors.expirySettings.addEventListener('input', (e) => {
+            if (e.target.type === 'number') {
+                const roomKey = e.target.dataset.roomKey;
+                const days = parseInt(e.target.value);
+                if (roomKey && !isNaN(days) && days > 0) {
+                    const currentThresholds = getExpiryThresholds();
+                    currentThresholds[roomKey] = days;
+                    localStorage.setItem('expiryThresholds', JSON.stringify(currentThresholds));
+                    recalculateAllItemStatuses();
+                    renderAll();
+                }
+            }
+        });
+        selectors.mainView.addEventListener('click', (e) => {
+            const target = e.target;
+            const deleteBtn = target.closest('.delete-btn');
+            if (deleteBtn) {
+                e.stopPropagation();
+                const id = deleteBtn.dataset.id;
+                if (id && confirm("Êtes-vous sûr de vouloir supprimer cet article ?")) {
+                    state.items = state.items.filter(item => item.id !== id);
+                    saveState();
+                    renderAll();
+                }
+                return;
+            }
+            const addBtn = target.closest('.add-item-btn');
+            if (addBtn) {
+                const room = addBtn.dataset.room;
                 showModal(room);
+                return;
+            }
+            const itemCard = target.closest('.item-card');
+            if (itemCard) {
+                const id = itemCard.dataset.id;
+                const itemToEdit = state.items.find(item => item.id === id);
+                if (itemToEdit) {
+                    state.isEditing = true;
+                    state.editItemId = id;
+                    showModal(null, itemToEdit);
+                }
             }
         });
         selectors.generateListBtn.addEventListener('click', () => displayView('shoppingListView'));
-
-        // Exporter/Importer
         selectors.exportBtn.addEventListener('click', exportData);
         selectors.importBtn.addEventListener('click', importData);
     }
     
     function handleSearch() {
-        const searchTerm = selectors.searchBar.value.toLowerCase();
-        const filteredItems = state.items.filter(item => 
-            item.name.toLowerCase().includes(searchTerm) ||
-            item.location.toLowerCase().includes(searchTerm) ||
-            item.notes.toLowerCase().includes(searchTerm)
-        );
-        // Gérer les suggestions
-        if (searchTerm.length > 2) {
-            selectors.searchSuggestions.innerHTML = '';
-            selectors.searchSuggestions.classList.remove('hidden');
-            filteredItems.slice(0, 5).forEach(item => {
-                const div = document.createElement('div');
-                div.textContent = `${item.name} (${rooms[item.room]})`;
-                div.addEventListener('click', () => {
-                    selectors.searchBar.value = item.name;
-                    selectors.searchSuggestions.classList.add('hidden');
-                    renderCategories();
-                });
-                selectors.searchSuggestions.appendChild(div);
-            });
-        } else {
-            selectors.searchSuggestions.classList.add('hidden');
-        }
-        
-        // Rendre les catégories après la recherche
         renderCategories();
     }
 
     function handleFormSubmit(event) {
         event.preventDefault();
+        const photoSrc = selectors.photoPreview.src.startsWith('data:') ? selectors.photoPreview.src : '';
         const newItem = {
             name: document.getElementById('itemName').value,
             type: selectors.itemType.value,
             room: document.getElementById('roomSelect').value,
             barcode: document.getElementById('itemBarcode').value,
             quantity: document.getElementById('itemQuantity').value,
+            price: parseFloat(document.getElementById('itemPrice').value) || 0,
             location: document.getElementById('itemLocation').value,
             expiry: document.getElementById('itemExpiry').value,
-      
             threshold: document.getElementById('itemThreshold').value,
-            photo: selectors.photoPreview.src,
+            photo: photoSrc,
             notes: document.getElementById('itemNotes').value,
             id: state.isEditing ? state.editItemId : Date.now().toString(),
         };
-        
         updateItemStatus(newItem);
         if (state.isEditing) {
             const itemIndex = state.items.findIndex(item => item.id === state.editItemId);
             if (itemIndex > -1) {
+                newItem.dateAdded = state.items[itemIndex].dateAdded; 
                 state.items[itemIndex] = newItem;
             }
         } else {
+            newItem.dateAdded = new Date().toISOString();
             state.items.push(newItem);
         }
-
         saveState();
         hideModal();
         renderAll();
     }
 
-    function handleItemActions(e) {
-        const target = e.target;
-        const id = target.dataset.id;
-        if (!id) return;
-
-        if (target.classList.contains('delete-btn')) {
-            if (confirm("Êtes-vous sûr de vouloir supprimer cet article ?")) {
-                state.items = state.items.filter(item => item.id !== id);
-                saveState();
-                renderAll();
-            }
-        } else if (target.classList.contains('edit-btn')) {
-            const itemToEdit = state.items.find(item => item.id === id);
-            if (itemToEdit) {
-                state.isEditing = true;
-                state.editItemId = id;
-                showModal(null, itemToEdit);
-            }
+    function handleRoomClick(e) {
+        const roomElement = e.target.closest('.room');
+        if (!roomElement) return;
+        const roomKey = roomElement.dataset.room;
+        if (roomKey) {
+            selectors.roomFilter.value = roomKey;
+            displayView('listView');
         }
     }
 
-    // ====> MODIFICATION 2 : Nouvelle fonction ajoutée <====
-    function handleRoomClick(e) {
-        // .closest() permet de trouver l'élément .room même si on clique sur l'icône ou le texte à l'intérieur
-        const roomElement = e.target.closest('.room');
-        if (!roomElement) return; // Si le clic n'est pas sur une pièce, on ne fait rien
-
-        const roomKey = roomElement.dataset.room;
-        if (roomKey) {
-            // 1. Mettre à jour la valeur du filtre déroulant des pièces
-            selectors.roomFilter.value = roomKey;
-
-            // 2. Afficher la vue "Liste", qui va automatiquement appliquer le filtre
-            displayView('listView');
+    function handleDetailedStatClick(e) {
+        const card = e.target.closest('.stat-card[data-filter-type]');
+        if (!card) return;
+        const filterType = card.dataset.filterType;
+        const filterValue = card.dataset.filterValue;
+        let filteredItems = [];
+        let titleText = '';
+        if (filterType === 'recent') {
+            const days = parseInt(filterValue);
+            const dateLimit = new Date();
+            dateLimit.setDate(dateLimit.getDate() - days);
+            filteredItems = state.items.filter(item => item.dateAdded && new Date(item.dateAdded) > dateLimit);
+            titleText = `Nouveaux articles (${days} derniers jours)`;
+        } else if (filterType === 'category') {
+            const [roomKey, typeKey] = filterValue.split('|');
+            filteredItems = state.items.filter(item => item.room === roomKey && item.type === typeKey);
+            titleText = `Articles dans : ${rooms[roomKey]} - ${types[typeKey]}`;
         }
+        const container = document.getElementById('statsFilteredListContainer');
+        const list = document.getElementById('statsFilteredList');
+        const title = document.getElementById('statsFilteredListTitle');
+        title.textContent = titleText;
+        list.innerHTML = '';
+        if (filteredItems.length > 0) {
+            filteredItems.forEach(item => {
+                list.appendChild(createItemCard(item));
+            });
+        } else {
+            list.innerHTML = '<p>Aucun article ne correspond à ce critère.</p>';
+        }
+        container.style.display = 'block';
+        container.scrollIntoView({ behavior: 'smooth' });
     }
 
     function handlePhotoUpload(e) {
@@ -405,42 +744,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Fonctions utilitaires ---
     function showModal(room = null, item = null) {
-        selectors.addItemModal.style.display = 'flex';
+        const modalTitle = document.getElementById('modalTitle');
+        const submitBtn = document.getElementById('submitBtn');
         selectors.itemForm.reset();
+        selectors.photoPreview.src = '';
         selectors.photoPreview.style.display = 'none';
         selectors.expiryGroup.style.display = 'none';
         selectors.itemForm.querySelector('#itemId').value = '';
         state.isEditing = false;
-        if (item) {
-            selectors.addItemBtn.textContent = 'Modifier';
-            document.getElementById('modalTitle').textContent = '✏️ Modifier un article';
-            document.getElementById('itemName').value = item.name;
-            document.getElementById('roomSelect').value = item.room;
-            selectors.itemType.value = item.type;
-            document.getElementById('itemBarcode').value = item.barcode;
-            document.getElementById('itemQuantity').value = item.quantity;
-            document.getElementById('itemLocation').value = item.location;
-            document.getElementById('itemExpiry').value = item.expiry;
-            document.getElementById('itemThreshold').value = item.threshold;
-            document.getElementById('itemNotes').value = item.notes;
+        
+        // Mode Édition
+        if (item && item.id && state.items.find(i => i.id === item.id)) {
+            state.isEditing = true;
+            state.editItemId = item.id;
+            modalTitle.textContent = '✏️ Modifier un article';
+            submitBtn.textContent = 'Modifier';
+            
+            document.getElementById('itemName').value = item.name || '';
+            document.getElementById('roomSelect').value = item.room || '';
+            selectors.itemType.value = item.type || '';
+            document.getElementById('itemBarcode').value = item.barcode || '';
+            document.getElementById('itemQuantity').value = item.quantity || '';
+            document.getElementById('itemPrice').value = item.price || '';
+            document.getElementById('itemLocation').value = item.location || '';
+            document.getElementById('itemExpiry').value = item.expiry || '';
+            document.getElementById('itemThreshold').value = item.threshold || '';
+            document.getElementById('itemNotes').value = item.notes || '';
             selectors.itemForm.querySelector('#itemId').value = item.id;
-            if (item.photo) {
+            
+            if (item.photo && item.photo !== 'https://via.placeholder.com/60') {
                 selectors.photoPreview.src = item.photo;
                 selectors.photoPreview.style.display = 'block';
             }
             if (item.type === 'food') {
                 selectors.expiryGroup.style.display = 'block';
             }
-            state.isEditing = true;
-        } else {
-            document.getElementById('modalTitle').textContent = '✨ Ajouter un article';
-            selectors.addItemBtn.textContent = 'Ajouter';
+        } else { // Mode Ajout
+            modalTitle.textContent = '✨ Ajouter un article';
+            submitBtn.textContent = 'Ajouter';
             if (room) {
                 document.getElementById('roomSelect').value = room;
             }
+            if (item) { // Pré-remplissage depuis scan
+                document.getElementById('itemName').value = item.name || '';
+                document.getElementById('itemBarcode').value = item.barcode || '';
+                if (item.photo) {
+                    selectors.photoPreview.src = item.photo;
+                    selectors.photoPreview.style.display = 'block';
+                }
+            }
         }
+        selectors.addItemModal.style.display = 'flex';
     }
 
     function hideModal() {
@@ -465,23 +820,56 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.items.filter(item => {
             const matchRoom = !room || item.room === room;
             const matchType = !type || item.type === type;
-            const matchSearch = !searchTerm || item.name.toLowerCase().includes(searchTerm) ||
+            const matchSearch = !searchTerm || (item.name && item.name.toLowerCase().includes(searchTerm)) ||
                                 (item.location && item.location.toLowerCase().includes(searchTerm)) ||
                                 (item.notes && item.notes.toLowerCase().includes(searchTerm));
             const matchExpiry = !expiry || item.status === expiry;
-            
             return matchRoom && matchType && matchSearch && matchExpiry;
         });
     }
 
+    function getExpiryThresholds() {
+        const saved = localStorage.getItem('expiryThresholds');
+        if (saved) {
+            try {
+                return { ...DEFAULT_EXPIRY_THRESHOLDS, ...JSON.parse(saved) };
+            } catch (e) { return DEFAULT_EXPIRY_THRESHOLDS; }
+        }
+        return DEFAULT_EXPIRY_THRESHOLDS;
+    }
+
+    function renderExpirySettings() {
+        const thresholds = getExpiryThresholds();
+        selectors.expirySettings.innerHTML = '';
+        for (const key in rooms) {
+            const item = document.createElement('div');
+            item.className = 'setting-item';
+            item.innerHTML = `
+                <label for="expiry-${key}">${rooms[key]}</label>
+                <input type="number" id="expiry-${key}" data-room-key="${key}" value="${thresholds[key] || 7}" min="1">
+            `;
+            selectors.expirySettings.appendChild(item);
+        }
+    }
+
+    function recalculateAllItemStatuses() {
+        state.items.forEach(item => updateItemStatus(item));
+        saveState();
+    }
+
     function updateItemStatus(item) {
         if (item.type === 'food' && item.expiry) {
+            const thresholds = getExpiryThresholds();
+            const thresholdInDays = thresholds[item.room] || 7;
+
             const today = new Date();
+            today.setHours(0, 0, 0, 0);
             const expiryDate = new Date(item.expiry);
             const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
             if (diffDays < 0) {
                 item.status = 'expired';
-            } else if (diffDays <= 7) {
+            } else if (diffDays <= thresholdInDays) {
                 item.status = 'expiring';
             } else {
                 item.status = 'fresh';
@@ -533,16 +921,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadTheme() {
         const savedTheme = localStorage.getItem('theme');
-        if (savedTheme) {
-            document.body.classList.add(savedTheme);
-            selectors.themeToggle.textContent = savedTheme === 'dark-theme' ? '☀️' : '🌙';
+        if (savedTheme === 'dark-theme') {
+            document.body.classList.add('dark-theme');
+            selectors.themeToggle.textContent = '☀️';
+        } else {
+            selectors.themeToggle.textContent = '🌙';
         }
     }
 
     function toggleTheme() {
         document.body.classList.toggle('dark-theme');
         const isDark = document.body.classList.contains('dark-theme');
-        localStorage.setItem('theme', isDark ? 'dark-theme' : '');
+        localStorage.setItem('theme', isDark ? 'dark-theme' : 'light-theme');
         selectors.themeToggle.textContent = isDark ? '☀️' : '🌙';
     }
 
