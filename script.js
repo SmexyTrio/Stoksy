@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let charts = {};
+    let html5QrcodeScanner;
 
     const selectors = {
         body: document.body,
@@ -328,13 +329,11 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(charts).forEach(chart => chart.destroy());
         const chartColors = getChartColors();
         const preferredChartType = localStorage.getItem('chartType') || 'circle';
-
         if (selectors.chartTypeToggle) {
             selectors.chartTypeToggle.querySelectorAll('.toggle-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.chartType === preferredChartType);
             });
         }
-
         const baseOptions = {
             responsive: true,
             maintainAspectRatio: false,
@@ -344,19 +343,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         };
-
         const itemsByRoom = state.items.reduce((acc, item) => {
             const roomName = rooms[item.room] || 'Non classé';
             acc[roomName] = (acc[roomName] || 0) + 1;
             return acc;
         }, {});
-        
         const roomLabels = Object.keys(itemsByRoom);
         const roomColors = roomLabels.map(label => {
             const roomKey = Object.keys(rooms).find(key => rooms[key] === label);
             return chartColors.rooms[roomKey] || '#cccccc';
         });
-
         const roomCtx = document.getElementById('itemsByRoomChart').getContext('2d');
         const roomChartOptions = {
             ...baseOptions,
@@ -384,7 +380,6 @@ document.addEventListener('DOMContentLoaded', () => {
             roomChartOptions.indexAxis = 'y';
             roomChartOptions.scales = { x: { beginAtZero: true } };
         }
-
         charts.itemsByRoom = new Chart(roomCtx, {
             type: preferredChartType === 'circle' ? 'doughnut' : 'bar',
             data: {
@@ -397,7 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             options: roomChartOptions
         });
-
         const expiryStatus = state.items
             .filter(item => item.type === 'food' && item.status)
             .reduce((acc, item) => {
@@ -405,13 +399,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 acc[statusLabel] = (acc[statusLabel] || 0) + 1;
                 return acc;
             }, {});
-            
         const statusLabels = Object.keys(expiryStatus);
         const statusColors = statusLabels.map(label => {
             const statusKey = Object.keys(STATUS_MAP).find(key => STATUS_MAP[key] === label);
             return chartColors.status[statusKey] || '#cccccc';
         });
-
         const expiryCtx = document.getElementById('expiryStatusChart').getContext('2d');
         const expiryChartOptions = {
              ...baseOptions,
@@ -439,7 +431,6 @@ document.addEventListener('DOMContentLoaded', () => {
             expiryChartOptions.indexAxis = 'y';
             expiryChartOptions.scales = { x: { beginAtZero: true } };
         }
-        
         charts.expiryStatus = new Chart(expiryCtx, {
             type: preferredChartType === 'circle' ? 'pie' : 'bar',
             data: {
@@ -475,12 +466,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         shoppingListEl.appendChild(ul);
     }
-
+    
     async function fetchProductInfo(barcode) {
         const originalTitle = document.getElementById('scannerTitle').textContent;
         document.getElementById('scannerTitle').textContent = "Recherche en cours...";
         try {
             const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+            if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
             const data = await response.json();
             if (data.status === 1 && data.product) {
                 const product = data.product;
@@ -496,48 +488,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error("Erreur lors de la récupération des informations du produit:", error);
-            alert("Erreur réseau. Impossible de récupérer les informations du produit.");
+            alert("Erreur réseau. Impossible de récupérer les informations du produit. Veuillez l'ajouter manuellement.");
             showModal(null, { barcode: barcode });
         } finally {
-             document.getElementById('scannerTitle').textContent = originalTitle;
+             if(document.getElementById('scannerTitle')) document.getElementById('scannerTitle').textContent = originalTitle;
         }
     }
 
     function startScanner() {
         selectors.scannerModal.style.display = 'flex';
-        Quagga.init({
-            inputStream: {
-                name: "Live",
-                type: "LiveStream",
-                target: selectors.scannerContainer,
-                constraints: {
-                    width: 480,
-                    height: 320,
-                    facingMode: "environment"
-                },
-            },
-            decoder: {
-                readers: ["ean_reader", "ean_8_reader", "code_128_reader"]
-            }
-        }, function(err) {
-            if (err) {
-                console.error(err);
-                alert("Erreur lors de l'initialisation de la caméra. Assurez-vous d'avoir donné la permission.");
-                stopScanner();
-                return;
-            }
-            Quagga.start();
-        });
-        Quagga.onDetected(result => {
-            const code = result.codeResult.code;
+        html5QrcodeScanner = new Html5QrcodeScanner("scanner-container", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+        
+        function onScanSuccess(decodedText, decodedResult) {
             stopScanner();
-            fetchProductInfo(code);
-        });
+            fetchProductInfo(decodedText);
+        }
+        
+        html5QrcodeScanner.render(onScanSuccess);
     }
 
     function stopScanner() {
-        if (typeof Quagga !== 'undefined' && Quagga.running) {
-            Quagga.stop();
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear().catch(error => {
+                console.error("Échec de l'arrêt du scanner.", error);
+            });
+            html5QrcodeScanner = null;
         }
         selectors.scannerModal.style.display = 'none';
     }
@@ -754,13 +729,11 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.itemForm.querySelector('#itemId').value = '';
         state.isEditing = false;
         
-        // Mode Édition
         if (item && item.id && state.items.find(i => i.id === item.id)) {
             state.isEditing = true;
             state.editItemId = item.id;
             modalTitle.textContent = '✏️ Modifier un article';
             submitBtn.textContent = 'Modifier';
-            
             document.getElementById('itemName').value = item.name || '';
             document.getElementById('roomSelect').value = item.room || '';
             selectors.itemType.value = item.type || '';
@@ -771,8 +744,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('itemExpiry').value = item.expiry || '';
             document.getElementById('itemThreshold').value = item.threshold || '';
             document.getElementById('itemNotes').value = item.notes || '';
-            selectors.itemForm.querySelector('#itemId').value = item.id;
-            
             if (item.photo && item.photo !== 'https://via.placeholder.com/60') {
                 selectors.photoPreview.src = item.photo;
                 selectors.photoPreview.style.display = 'block';
@@ -780,13 +751,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.type === 'food') {
                 selectors.expiryGroup.style.display = 'block';
             }
-        } else { // Mode Ajout
+        } else {
             modalTitle.textContent = '✨ Ajouter un article';
             submitBtn.textContent = 'Ajouter';
             if (room) {
                 document.getElementById('roomSelect').value = room;
             }
-            if (item) { // Pré-remplissage depuis scan
+            if (item) {
                 document.getElementById('itemName').value = item.name || '';
                 document.getElementById('itemBarcode').value = item.barcode || '';
                 if (item.photo) {
